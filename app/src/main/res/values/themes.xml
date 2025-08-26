@@ -1,0 +1,5 @@
+<resources>
+    <style name="Theme.Bosseln" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Optional: Fenster-/Statusbar-Anpassungen etc. -->
+    </style>
+</resources>

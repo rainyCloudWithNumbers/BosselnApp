@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Einfacher Kreis als Platzhalter -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M54,12
+                          a42,42 0 1,0 0,84
+                          a42,42 0 1,0 0,-84"/>
+</vector>
