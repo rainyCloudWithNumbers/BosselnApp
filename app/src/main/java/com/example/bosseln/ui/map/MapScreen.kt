@@ -60,13 +60,15 @@ fun MapScreen(vm: GameViewModel) {
             val folder = FolderOverlay()
 
             throws.forEach { ev ->
-                val teamColorLong = state.teams.firstOrNull { it.id == ev.teamId }?.colorArgb ?: 0xFF2196F3
+                val team = state.teams.firstOrNull { it.id == ev.teamId }
+                val teamColorLong = team?.colorArgb ?: 0xFF2196F3
                 val teamColorInt = teamColorLong.toInt()
+                val teamName = team?.name ?: "Unbekannt"
 
                 val marker = Marker(map).apply {
                     position = GeoPoint(ev.lat!!, ev.lon!!)
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                    title = "Team ${ev.teamId}  #${ev.sequence}"
+                    title = "$teamName  #${ev.sequence}"
                     // Standard-Icon laden und einfärben (tinten)
                     val base = ContextCompat.getDrawable(ctx, org.osmdroid.library.R.drawable.marker_default)
                     if (base != null) {

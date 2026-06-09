@@ -1,13 +1,15 @@
 package com.example.bosseln.ui.play
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -22,61 +24,68 @@ fun PlayScreen(vm: GameViewModel) {
         state.teams.filter { state.selectedTeams.contains(it.id) }
     }
 
-    Column(Modifier.padding(12.dp).fillMaxSize()) {
-        Text(match?.title ?: "Match", style = MaterialTheme.typography.headlineSmall)
-        Spacer(Modifier.height(8.dp))
-
-        if (selectedTeams.isEmpty()) {
-            Text("Keine Teams ausgewählt.")
-            return
+    LazyColumn(
+        Modifier.padding(12.dp).fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Text(match?.title ?: "Match", style = MaterialTheme.typography.headlineSmall)
+            Spacer(Modifier.height(8.dp))
         }
 
-        val twoCols = selectedTeams.size == 2
-
-        if (twoCols) {
-            // nebeneinander
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                selectedTeams.forEach { team ->
-                    TeamSegment(vm, team, modifier = Modifier.weight(1f))
-                }
+        if (selectedTeams.isEmpty()) {
+            item {
+                Text("Keine Teams ausgewählt.")
             }
         } else {
-            // untereinander
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            val twoCols = selectedTeams.size == 2
+
+            if (twoCols) {
+                // nebeneinander - als EIN Item in der LazyColumn
+                item {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        selectedTeams.forEach { team ->
+                            TeamSegment(vm, team, modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+            } else {
+                // untereinander - jedes Team ein Item
                 items(selectedTeams.size) { i ->
                     TeamSegment(vm, selectedTeams[i], modifier = Modifier.fillMaxWidth())
                 }
             }
         }
 
+        item {
+            Spacer(Modifier.height(16.dp))
 
-var showConfirm by remember { mutableStateOf(false) }
+            var showConfirm by remember { mutableStateOf(false) }
 
-Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-    OutlinedButton(
-        onClick = { showConfirm = true },
-        colors = ButtonDefaults.outlinedButtonColors()
-    ) { Text("Spielrunde beenden") }
-}
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                OutlinedButton(
+                    onClick = { showConfirm = true },
+                    colors = ButtonDefaults.outlinedButtonColors()
+                ) { Text("Spielrunde beenden") }
+            }
 
-if (showConfirm) {
-    AlertDialog(
-        onDismissRequest = { showConfirm = false },
-        title = { Text("Runde beenden?") },
-        text = { Text("Die aktuelle Spielrunde wird abgeschlossen und in der Historie gespeichert. Fortfahren?") },
-        confirmButton = {
-            TextButton(onClick = {
-                showConfirm = false
-                vm.finishMatch()
-            }) { Text("Ja, beenden") }
-        },
-        dismissButton = {
-            TextButton(onClick = { showConfirm = false }) { Text("Abbrechen") }
+            if (showConfirm) {
+                AlertDialog(
+                    onDismissRequest = { showConfirm = false },
+                    title = { Text("Runde beenden?") },
+                    text = { Text("Die aktuelle Spielrunde wird abgeschlossen und in der Historie gespeichert. Fortfahren?") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            showConfirm = false
+                            vm.finishMatch()
+                        }) { Text("Ja, beenden") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showConfirm = false }) { Text("Abbrechen") }
+                    }
+                )
+            }
         }
-    )
-}
-
-
     }
 }
 
@@ -85,19 +94,30 @@ private fun TeamSegment(vm: GameViewModel, team: Team, modifier: Modifier = Modi
     val state by vm.state.collectAsState()
     val throws = state.throws.filter { it.teamId == team.id }
     val count by produceState(initialValue = 0, key1 = state.throws, key2 = state.counterOffsets) {
-    value = vm.getDisplayCount(team.id)
-}
+        value = vm.getDisplayCount(team.id)
+    }
     val lastDist = throws.lastOrNull { it.distanceSinceLastM != null }?.distanceSinceLastM
     val players = state.players[team.id].orEmpty()
+
+    val teamColor = Color(team.colorArgb.toInt())
 
     // Nächster Index: ABWURF-Zahl modulo Spieleranzahl (falls >0)
     val nextIdx = remember(players.size, count) {
         if (players.isNotEmpty()) count % players.size else -1
     }
 
-    Card(modifier) {
+    Card(
+        modifier = modifier.border(2.dp, teamColor, RoundedCornerShape(12.dp)),
+        colors = CardDefaults.cardColors(
+            containerColor = teamColor.copy(alpha = 0.1f)
+        )
+    ) {
         Column(Modifier.padding(12.dp)) {
-            Text(team.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(16.dp).background(teamColor, RoundedCornerShape(4.dp)))
+                Spacer(Modifier.width(8.dp))
+                Text(team.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            }
             Spacer(Modifier.height(6.dp))
 
             // Große Zählanzeige
@@ -109,6 +129,7 @@ private fun TeamSegment(vm: GameViewModel, team: Team, modifier: Modifier = Modi
                     text = count.toString(),
                     fontSize = 64.sp,
                     fontWeight = FontWeight.Black,
+                    color = teamColor,
                     letterSpacing = 2.sp
                 )
             }
@@ -120,7 +141,8 @@ private fun TeamSegment(vm: GameViewModel, team: Team, modifier: Modifier = Modi
 
             Button(
                 onClick = { vm.recordAbwurf(team.id) },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = teamColor)
             ) { Text("Abwurf") }
 
             Spacer(Modifier.height(10.dp))
@@ -133,9 +155,9 @@ private fun TeamSegment(vm: GameViewModel, team: Team, modifier: Modifier = Modi
                 // Liste mit optischem Highlight für den nächsten
                 players.forEachIndexed { idx, p ->
                     val isNext = idx == nextIdx
-                    val container = if (isNext) MaterialTheme.colorScheme.secondaryContainer
+                    val container = if (isNext) teamColor.copy(alpha = 0.2f)
                                     else MaterialTheme.colorScheme.surfaceVariant
-                    val content = if (isNext) MaterialTheme.colorScheme.onSecondaryContainer
+                    val content = if (isNext) MaterialTheme.colorScheme.onSurface
                                   else MaterialTheme.colorScheme.onSurfaceVariant
                     Surface(
                         tonalElevation = if (isNext) 4.dp else 0.dp,
@@ -150,7 +172,7 @@ private fun TeamSegment(vm: GameViewModel, team: Team, modifier: Modifier = Modi
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             if (isNext) {
-                                Text("▶", color = content, modifier = Modifier.padding(end = 8.dp))
+                                Text("▶", color = teamColor, modifier = Modifier.padding(end = 8.dp))
                             } else {
                                 Text("  ", modifier = Modifier.padding(end = 8.dp)) // Platzhalter
                             }

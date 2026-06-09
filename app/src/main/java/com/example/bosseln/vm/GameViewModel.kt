@@ -91,8 +91,8 @@ fun deleteMatch(matchId: Long) = viewModelScope.launch(Dispatchers.IO) {
         loadAllPlayers() 
     }
 
-    fun createTeam(name: String) = viewModelScope.launch(Dispatchers.IO) {
-        repo.upsertTeam(name)
+    fun createTeam(name: String, colorArgb: Long) = viewModelScope.launch(Dispatchers.IO) {
+        repo.upsertTeam(name, colorArgb)
         refreshTeams()
     }
 
@@ -150,6 +150,10 @@ fun deleteMatch(matchId: Long) = viewModelScope.launch(Dispatchers.IO) {
 
     fun finishMatch() = viewModelScope.launch(Dispatchers.IO) {
         val match = _state.value.currentMatch ?: return@launch
+
+        // Export as JSON file
+        exportMatchToJson(match)
+
         repo.endMatchAndPersistSummary(match)
         _state.value = _state.value.copy(
             currentMatch = null,
@@ -157,6 +161,52 @@ fun deleteMatch(matchId: Long) = viewModelScope.launch(Dispatchers.IO) {
             throws = emptyList(),
             counterOffsets = emptyMap()
         )
+    }
+
+    private suspend fun exportMatchToJson(match: com.example.bosseln.data.db.Match) {
+        try {
+            val teams = _state.value.teams.filter { _state.value.selectedTeams.contains(it.id) }
+            val throws = repo.throwsForMatch(match.id)
+
+            val root = org.json.JSONObject()
+            root.put("matchId", match.id)
+            root.put("title", match.title)
+            root.put("startedAt", match.startedAt)
+            root.put("endedAt", System.currentTimeMillis())
+
+            val teamsArray = org.json.JSONArray()
+            teams.forEach { t ->
+                val teamObj = org.json.JSONObject()
+                teamObj.put("id", t.id)
+                teamObj.put("name", t.name)
+                teamObj.put("color", t.colorArgb)
+                teamsArray.put(teamObj)
+            }
+            root.put("teams", teamsArray)
+
+            val throwsArray = org.json.JSONArray()
+            throws.forEach { e ->
+                val throwObj = org.json.JSONObject()
+                throwObj.put("id", e.id)
+                throwObj.put("teamId", e.teamId)
+                throwObj.put("sequence", e.sequence)
+                throwObj.put("timestamp", e.timestamp)
+                throwObj.put("lat", e.lat ?: org.json.JSONObject.NULL)
+                throwObj.put("lon", e.lon ?: org.json.JSONObject.NULL)
+                throwObj.put("accuracy", e.accuracyM?.toDouble() ?: org.json.JSONObject.NULL)
+                throwObj.put("distanceSinceLast", e.distanceSinceLastM ?: org.json.JSONObject.NULL)
+                throwObj.put("playerId", e.playerId ?: org.json.JSONObject.NULL)
+                throwsArray.put(throwObj)
+            }
+            root.put("throws", throwsArray)
+
+            val fileName = "match_${match.id}_${System.currentTimeMillis()}.json"
+            val file = java.io.File(getApplication<Application>().getExternalFilesDir(null), fileName)
+            file.writeText(root.toString(4))
+            android.util.Log.d("GameViewModel", "Exported match to ${file.absolutePath}")
+        } catch (e: Exception) {
+            android.util.Log.e("GameViewModel", "Failed to export match JSON", e)
+        }
     }
 
     // ---------- Zählen / Abwurf ----------
