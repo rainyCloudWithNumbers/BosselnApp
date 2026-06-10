@@ -68,7 +68,7 @@ fun MapScreen(vm: GameViewModel) {
                 val marker = Marker(map).apply {
                     position = GeoPoint(ev.lat!!, ev.lon!!)
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                    title = "$teamName  #${ev.sequence}"
+                    title = if (ev.kind == "START") "$teamName (Start)" else "$teamName  #${ev.sequence}"
                     // Standard-Icon laden und einfärben (tinten)
                     val base = ContextCompat.getDrawable(ctx, org.osmdroid.library.R.drawable.marker_default)
                     if (base != null) {

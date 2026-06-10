@@ -106,6 +106,8 @@ private fun TeamSegment(vm: GameViewModel, team: Team, modifier: Modifier = Modi
         if (players.isNotEmpty()) count % players.size else -1
     }
 
+    val isRefining = state.refiningTeams.contains(team.id)
+
     Card(
         modifier = modifier.border(2.dp, teamColor, RoundedCornerShape(12.dp)),
         colors = CardDefaults.cardColors(
@@ -117,6 +119,14 @@ private fun TeamSegment(vm: GameViewModel, team: Team, modifier: Modifier = Modi
                 Box(Modifier.size(16.dp).background(teamColor, RoundedCornerShape(4.dp)))
                 Spacer(Modifier.width(8.dp))
                 Text(team.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                if (isRefining) {
+                    Spacer(Modifier.weight(1f))
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = teamColor
+                    )
+                }
             }
             Spacer(Modifier.height(6.dp))
 
@@ -135,15 +145,27 @@ private fun TeamSegment(vm: GameViewModel, team: Team, modifier: Modifier = Modi
             }
 
             if (lastDist != null) {
-                Text("Letzte Distanz: ${"%.1f".format(lastDist)} m")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Letzte Distanz: ${"%.1f".format(lastDist)} m")
+                    if (isRefining) {
+                        Text(" (wird verfeinert...)", style = MaterialTheme.typography.bodySmall, color = teamColor)
+                    }
+                }
                 Spacer(Modifier.height(4.dp))
             }
 
             Button(
                 onClick = { vm.recordAbwurf(team.id) },
                 modifier = Modifier.fillMaxWidth(),
+                enabled = !isRefining,
                 colors = ButtonDefaults.buttonColors(containerColor = teamColor)
-            ) { Text("Abwurf") }
+            ) {
+                if (isRefining) {
+                    Text("Suche GPS...")
+                } else {
+                    Text("Abwurf")
+                }
+            }
 
             Spacer(Modifier.height(10.dp))
             Text("Wer ist dran:", style = MaterialTheme.typography.labelLarge)

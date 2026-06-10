@@ -138,11 +138,34 @@ fun deleteMatch(matchId: Long) = viewModelScope.launch(Dispatchers.IO) {
     fun startMatch() = viewModelScope.launch(Dispatchers.IO) {
         val selected = _state.value.selectedTeams
         if (selected.isEmpty()) return@launch
+
+        // Start-Standort erfassen
+        val loc = locator.getAccurateOnce()
+
         val match = repo.createMatch(_state.value.matchTitle.ifBlank { "Bosseln" }, selected)
+
+        // Für jedes Team einen START-Punkt setzen, damit der erste Abwurf eine Distanz hat
+        selected.forEach { tid ->
+            val seq = repo.nextSeq(match.id)
+            repo.addEvent(
+                ThrowEvent(
+                    matchId = match.id,
+                    teamId = tid,
+                    sequence = seq,
+                    kind = "START",
+                    lat = loc?.lat,
+                    lon = loc?.lon,
+                    accuracyM = loc?.accuracyM
+                )
+            )
+        }
+
         val offsets = repo.getOffsets(match.id)
+        val throws = repo.throwsForMatch(match.id)
+
         _state.value = _state.value.copy(
             currentMatch = match,
-            throws = emptyList(),
+            throws = throws,
             counterOffsets = offsets
         )
         selected.forEach { loadPlayers(it) }
@@ -217,23 +240,23 @@ fun deleteMatch(matchId: Long) = viewModelScope.launch(Dispatchers.IO) {
         // Standort (kann null sein)
         val loc = locator.getAccurateOnce()
 
-        // letzten Team-Abwurf ermitteln
+        // letzten Team-Event (START oder ABWURF) ermitteln
         val all = repo.throwsForMatch(match.id)
-        val lastTeamAbwurf = all.lastOrNull { it.teamId == teamId && it.kind == "ABWURF" }
+        val lastEvent = all.lastOrNull { it.teamId == teamId }
 
         val dist = if (
             loc != null &&
-            lastTeamAbwurf?.lat != null && lastTeamAbwurf.lon != null
+            lastEvent?.lat != null && lastEvent.lon != null
         ) {
             haversineMeters(
-                lastTeamAbwurf.lat,
-                lastTeamAbwurf.lon,
+                lastEvent.lat,
+                lastEvent.lon,
                 loc.lat,
                 loc.lon
             )
         } else null
 
-         val baseCount = repo.countThrowsForTeam(match.id, teamId)
+        val baseCount = repo.countThrowsForTeam(match.id, teamId)
         val players = _state.value.players[teamId].orEmpty()
         val currentPlayerId = if (players.isNotEmpty()) players[baseCount % players.size].id else null
 
@@ -249,29 +272,32 @@ fun deleteMatch(matchId: Long) = viewModelScope.launch(Dispatchers.IO) {
                 lon = loc?.lon,
                 accuracyM = loc?.accuracyM,
                 distanceSinceLastM = dist,
-                 playerId = currentPlayerId
+                playerId = currentPlayerId
             )
         )
-        
-// UI-Indikator: setze z. B. state.refiningTeams += teamId
-markRefining(teamId, true)
 
-viewModelScope.launch(Dispatchers.IO) {
-    val better = locator.getBestFixWithin()
-    if (better != null) {
-        // Distanz zum letzten Team-Abwurf neu berechnen
-        val last = repo.throwsForMatch(match.id)
-            .filter { it.teamId == teamId && it.kind == "ABWURF" && it.id != saved.id }
-            .lastOrNull()
-        val dist = if (last?.lat != null && last.lon != null)
-            haversineMeters(last.lat, last.lon, better.lat, better.lon)
-        else null
-
-        repo.updateThrowFix(saved.id, better.lat, better.lon, better.accuracyM, dist)
+        // UI sofort aktualisieren
         refreshThrows()
-    }
-    markRefining(teamId, false)
-}
+
+        // UI-Indikator: setze z. B. state.refiningTeams += teamId
+        markRefining(teamId, true)
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val better = locator.getBestFixWithin()
+            if (better != null) {
+                // Distanz zum letzten Team-Event neu berechnen
+                val allUpdated = repo.throwsForMatch(match.id)
+                val last = allUpdated.lastOrNull { it.teamId == teamId && it.id != saved.id }
+                
+                val newDist = if (last?.lat != null && last.lon != null)
+                    haversineMeters(last.lat, last.lon, better.lat, better.lon)
+                else null
+
+                repo.updateThrowFix(saved.id, better.lat, better.lon, better.accuracyM, newDist)
+                refreshThrows()
+            }
+            markRefining(teamId, false)
+        }
     }
 
     private fun markRefining(teamId: Long, on: Boolean) {
